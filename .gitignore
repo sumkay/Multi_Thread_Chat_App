@@ -1,0 +1,20 @@
+# Derleme dosyaları
+bin/
+obj/
+
+# Visual Studio ile ilgili dosyalar
+.vs/
+.vscode/
+
+# Kişisel kullanıcı ayarları
+*.user
+*.suo
+
+# Derleme ve geçici dosyalar
+*.exe
+*.dll
+*.pdb
+*.cache
+
+# Log dosyaları
+*.log
