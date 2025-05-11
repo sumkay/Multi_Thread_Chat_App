@@ -8,11 +8,9 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml.Serialization;
 
 namespace Client
 {
@@ -22,8 +20,7 @@ namespace Client
         public NetworkStream serverStream = default(NetworkStream);
         string readData = null;
         Thread ctThread;
-        String name = null;
-        List<string> nowChatting = new List<string>();
+        String name = null;        
         List<string> chat = new List<string>();
 
         public void setName(String title)
@@ -35,7 +32,6 @@ namespace Client
         public formMain()
         {
             InitializeComponent();
-
         }
 
         private void btnSend_Click(object sender, EventArgs e)
@@ -58,7 +54,6 @@ namespace Client
             {
                 btnConnect.Enabled = true;
             }
-
         }
 
         private void btnConnect_Click(object sender, EventArgs e)
@@ -77,7 +72,6 @@ namespace Client
                 serverStream.Flush();
                 btnConnect.Enabled = false;
 
-
                 ctThread = new Thread(getMessage);
                 ctThread.Start();
             }
@@ -91,11 +85,10 @@ namespace Client
         {
             this.Invoke((MethodInvoker)delegate
             {
-                listBox1.Items.Clear();
+                cmbUsers.Items.Clear();
                 for (int i = 1; i < parts.Count; i++)
                 {
-                    listBox1.Items.Add(parts[i]);
-
+                    cmbUsers.Items.Add(parts[i]);
                 }
             });
         }
@@ -108,8 +101,7 @@ namespace Client
                 {
                     serverStream = clientSocket.GetStream();
                     byte[] inStream = new byte[10025];
-                    serverStream.Read(inStream, 0, inStream.Length);
-                    List<string> parts = null;
+                    int bytesRead = serverStream.Read(inStream, 0, inStream.Length);
 
                     if (!SocketConnected(clientSocket))
                     {
@@ -119,7 +111,9 @@ namespace Client
                         btnConnect.Enabled = true;
                     }
 
-                    parts = (List<string>)ByteArrayToObject(inStream);
+                    // --- DÜZENLEME: Doğru veri uzunluğunda oku ---
+                    List<string> parts = (List<string>)ByteArrayToObject(inStream.Take(bytesRead).ToArray());
+
                     switch (parts[0])
                     {
                         case "userList":
@@ -132,16 +126,18 @@ namespace Client
                             break;
 
                         case "pChat":
-                            managePrivateChat(parts);
+                            // parts[1]: gönderen, parts[2]: mesaj
+                            readData = "[Özel Mesaj] " + parts[1] + ": " + parts[2];
+                            msg();
                             break;
                     }
 
-                    if (readData[0].Equals('\0'))
+                    if (readData != null && readData.Length > 0 && readData[0].Equals('\0'))
                     {
                         readData = "Tekrar Bağlan";
                         msg();
 
-                        this.Invoke((MethodInvoker)delegate // To Write the Received data
+                        this.Invoke((MethodInvoker)delegate
                         {
                             btnConnect.Enabled = true;
                         });
@@ -155,12 +151,19 @@ namespace Client
             }
             catch (Exception e)
             {
-                ctThread.Abort();
-                clientSocket.Close();
+                try
+                {
+                    ctThread.Abort();
+                }
+                catch { }
+                try
+                {
+                    clientSocket.Close();
+                }
+                catch { }
                 btnConnect.Enabled = true;
                 Console.WriteLine(e);
             }
-
         }
 
         private void msg()
@@ -173,7 +176,7 @@ namespace Client
 
         private void formMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            DialogResult dialog = MessageBox.Show("Çıkmak istiyor musunuz? ", "Exit", MessageBoxButtons.YesNo);
+            DialogResult dialog = MessageBox.Show("Çıkmak istiyor musunuz? ", "Çıkış Yap", MessageBoxButtons.YesNo);
             if (dialog == DialogResult.Yes)
             {
                 try
@@ -190,32 +193,6 @@ namespace Client
                 e.Cancel = true;
             }
         }
-
-
-        public void managePrivateChat(List<string> parts)
-        {
-
-            this.Invoke((MethodInvoker)delegate // To Write the Received data
-            {
-                if (parts[3].Equals("new"))
-                {
-                    formPrivate privateC = new formPrivate(parts[2], clientSocket, name);
-                    nowChatting.Add(parts[2]);
-                    privateC.Text =  parts[2] + " ile özel sohbet";
-                    privateC.Show();
-                }
-                else
-                {
-                    if (Application.OpenForms["formPrivate"] != null)
-                    {
-                        (Application.OpenForms["formPrivate"] as formPrivate).setHistory(parts[3]);
-                    }
-                }
-
-            });
-
-        }
-
 
         public byte[] ObjectToByteArray(object _Object)
         {
@@ -239,7 +216,7 @@ namespace Client
             }
         }
 
-        bool SocketConnected(TcpClient s) //check whether client is connected server
+        bool SocketConnected(TcpClient s)
         {
             bool flag = false;
             try
@@ -249,7 +226,7 @@ namespace Client
                 if (part1 && part2)
                 {
                     indicator.BackColor = Color.Red;
-                    this.Invoke((MethodInvoker)delegate // cross threads
+                    this.Invoke((MethodInvoker)delegate
                     {
                         btnConnect.Enabled = true;
                     });
@@ -267,30 +244,6 @@ namespace Client
             }
             return flag;
         }
-
-        private void privateChatToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            if (listBox1.SelectedIndex != -1)
-            {
-                String clientName = listBox1.GetItemText(listBox1.SelectedItem);
-                chat.Clear();
-                chat.Add("pChat");
-                chat.Add(clientName);
-                chat.Add(name);
-                chat.Add("new");
-
-                byte[] outStream = ObjectToByteArray(chat);
-                serverStream.Write(outStream, 0, outStream.Length);
-                serverStream.Flush();
-
-                formPrivate privateChat = new formPrivate(clientName, clientSocket, name);
-                nowChatting.Add(clientName);
-                privateChat.Text = clientName + " ile özel sohbet ";
-                privateChat.Show();
-                chat.Clear();
-            }
-        }
-
         private void btnClr_Click(object sender, EventArgs e)
         {
             history.Clear();
@@ -300,6 +253,34 @@ namespace Client
         {
             history.SelectionStart = history.TextLength;
             history.ScrollToCaret();
+        }
+
+        private void btnPrivateSend_Click(object sender, EventArgs e)
+        {
+            if (cmbUsers.SelectedItem == null)
+            {
+                MessageBox.Show("Lütfen bir kullanıcı seçin.");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(input.Text))
+            {
+                MessageBox.Show("Lütfen mesajınızı yazın.");
+                return;
+            }
+
+            List<string> paket = new List<string>();
+            paket.Add("pChat"); // özel mesaj olduğunu belirtiyoruz
+            paket.Add(cmbUsers.SelectedItem.ToString()); // alıcı kullanıcı adı
+            paket.Add(input.Text); // mesaj
+
+            byte[] outStream = ObjectToByteArray(paket);
+            serverStream.Write(outStream, 0, outStream.Length);
+            serverStream.Flush();
+
+            // İsterseniz kendi ekranınızda da gösterin:
+            history.AppendText(Environment.NewLine + " [Özel Mesaj] " + cmbUsers.SelectedItem.ToString() + " >> " + input.Text);
+
+            input.Clear();
         }
     }
 }

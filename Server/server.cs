@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -13,8 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml.Serialization;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using System.Data.SqlClient;
 
 namespace Server
 {
@@ -22,7 +17,6 @@ namespace Server
     {
         TcpListener listener = new TcpListener(IPAddress.Parse("127.0.0.1"), 5000);
         TcpClient client;
-        String clNo;
         Dictionary<string, TcpClient> clientList = new Dictionary<string, TcpClient>();
         CancellationTokenSource cancellation = new CancellationTokenSource();
         List<string> chat = new List<string>();
@@ -34,13 +28,13 @@ namespace Server
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            cancellation = new CancellationTokenSource(); //resets the token when the server restarts
+            cancellation = new CancellationTokenSource();
             startServer();
         }
 
         public void updateUI(String m)
         {
-            this.Invoke((MethodInvoker)delegate // To Write the Received data
+            this.Invoke((MethodInvoker)delegate
             {
                 textBox1.AppendText(">>" + m + Environment.NewLine);
             });
@@ -49,43 +43,38 @@ namespace Server
         public async void startServer()
         {
             listener.Start();
-            updateUI("Server Started at " + listener.LocalEndpoint);
-            updateUI("Waiting for Clients");
+            updateUI("Server Başlatıldı.");
+            updateUI("Server dinliyor: " + listener.LocalEndpoint);
+            updateUI("Kullanıcılar bekleniyor...");
             try
             {
                 int counter = 0;
                 while (true)
                 {
                     counter++;
-                    //client = await listener.AcceptTcpClientAsync();
                     client = await Task.Run(() => listener.AcceptTcpClientAsync(), cancellation.Token);
 
-                    /* get username */
                     byte[] name = new byte[50];
-                    NetworkStream stre = client.GetStream(); //Gets The Stream of The Connection
-                    stre.Read(name, 0, name.Length); //Receives Data 
-                    String username = Encoding.ASCII.GetString(name); // Converts Bytes Received to String
+                    NetworkStream stre = client.GetStream();
+                    stre.Read(name, 0, name.Length);
+                    String username = Encoding.ASCII.GetString(name);
                     username = username.Substring(0, username.IndexOf("$"));
 
-                    /* add to dictionary, listbox and send userList  */
                     clientList.Add(username, client);
                     listBox1.Items.Add(username);
-                    updateUI("Connected to user " + username + " - " + client.Client.RemoteEndPoint);
-                    announce(username + " Joined ", username, false);
+                    updateUI("Kullanıcı bağlandı " + username + " - " + client.Client.RemoteEndPoint);
+                    announce(username + " Katıldı ", username, false);
 
                     await Task.Delay(1000).ContinueWith(t => sendUsersList());
 
-
                     var c = new Thread(() => ServerReceive(client, username));
                     c.Start();
-
                 }
             }
             catch (Exception)
             {
                 listener.Stop();
             }
-
         }
 
         public void announce(string msg, string uName, bool flag)
@@ -94,27 +83,21 @@ namespace Server
             {
                 foreach (var Item in clientList)
                 {
-                    TcpClient broadcastSocket;
-                    broadcastSocket = (TcpClient)Item.Value;
+                    TcpClient broadcastSocket = (TcpClient)Item.Value;
                     NetworkStream broadcastStream = broadcastSocket.GetStream();
                     Byte[] broadcastBytes = null;
 
                     if (flag)
                     {
-                       
-
                         chat.Add("gChat");
-                        chat.Add(uName + " says : " + msg);
+                        chat.Add(uName + " adlı kullanıcının mesajı : " + msg);
                         broadcastBytes = ObjectToByteArray(chat);
                     }
                     else
                     {
-                        
-
                         chat.Add("gChat");
                         chat.Add(msg);
                         broadcastBytes = ObjectToByteArray(chat);
-
                     }
 
                     broadcastStream.Write(broadcastBytes, 0, broadcastBytes.Length);
@@ -122,12 +105,11 @@ namespace Server
                     chat.Clear();
                 }
             }
-            catch (Exception er)
+            catch (Exception)
             {
-
+                // Hata yönetimi eklenebilir
             }
-        }  //end broadcast function
-
+        }
 
         public Object ByteArrayToObject(byte[] arrBytes)
         {
@@ -143,7 +125,7 @@ namespace Server
 
         public byte[] ObjectToByteArray(Object obj)
         {
-            BinaryFormatter bf = new BinaryFormatter();
+            var bf = new BinaryFormatter();
             using (var ms = new MemoryStream())
             {
                 bf.Serialize(ms, obj);
@@ -151,41 +133,65 @@ namespace Server
             }
         }
 
-
-
         public void ServerReceive(TcpClient clientn, String username)
         {
-            byte[] data = new byte[1000];
-            String text = null;
+            byte[] data = new byte[10025];
             while (true)
             {
                 try
                 {
-                    NetworkStream stream = clientn.GetStream(); //Gets The Stream of The Connection
-                    stream.Read(data, 0, data.Length); //Receives Data 
-                    List<string> parts = (List<string>)ByteArrayToObject(data);
+                    NetworkStream stream = clientn.GetStream();
+                    int bytesRead = stream.Read(data, 0, data.Length);
+                    if (bytesRead == 0) break;
+
+                    // --- DÜZENLEME: Doğru veri uzunluğunda oku ---
+                    var obj = ByteArrayToObject(data.Take(bytesRead).ToArray());
+                    List<string> parts = obj as List<string>;
+                    if (parts == null || parts.Count == 0)
+                        continue;
 
                     switch (parts[0])
                     {
                         case "gChat":
-                            this.Invoke((MethodInvoker)delegate // To Write the Received data
+                            this.Invoke((MethodInvoker)delegate
                             {
                                 textBox1.Text += username + ": " + parts[1] + Environment.NewLine;
                             });
                             announce(parts[1], username, true);
+                            SaveMessageToDb(username, parts[1]);
                             break;
-
+                        // pChat desteği ekleyecekseniz burada benzer şekilde List<string> ile kullanın.
                         case "pChat":
-                            privateChat(parts);
-                            break;
-                    }
+                            // parts[1]: alıcı, parts[2]: mesaj
+                            string alici = parts[1];
+                            string mesaj = parts[2];
 
-                    parts.Clear();
+                            if (clientList.ContainsKey(alici))
+                            {
+                                // Alıcıya özel mesajı gönder
+                                List<string> paket = new List<string>();
+                                paket.Add("pChat");
+                                paket.Add(username); // gönderen
+                                paket.Add(mesaj);
+
+                                byte[] privateMsg = ObjectToByteArray(paket);
+
+                                TcpClient aliciClient = clientList[alici];
+                                NetworkStream aliciStream = aliciClient.GetStream();
+                                aliciStream.Write(privateMsg, 0, privateMsg.Length);
+                                aliciStream.Flush();
+
+                                // --- VERİTABANINA KAYDET ---
+                                SavePrivateMessageToDb(username, alici, mesaj);
+                            }
+                            break;
+
+                    }
                 }
-                catch (Exception r)
+                catch (Exception)
                 {
-                    updateUI("Client Disconnected: " + username);
-                    announce("Client Disconnected: " + username + "$", username, false);
+                    updateUI("Kullanıcı Ayrıldı: " + username);
+                    announce("Kullanıcı Ayrıldı: " + username, username, false);
                     clientList.Remove(username);
 
                     this.Invoke((MethodInvoker)delegate
@@ -203,23 +209,69 @@ namespace Server
             try
             {
                 listener.Stop();
-                updateUI("Server Stopped");
+                updateUI("Server Durduruldu");
                 foreach (var Item in clientList)
                 {
-                    TcpClient broadcastSocket;
-                    broadcastSocket = (TcpClient)Item.Value;
+                    TcpClient broadcastSocket = (TcpClient)Item.Value;
                     broadcastSocket.Close();
                 }
             }
-            catch (SocketException er)
+            catch (SocketException)
             {
-
+                // Hata yönetimi eklenebilir
             }
-
-            
-
         }
 
+        public void sendUsersList()
+        {
+            try
+            {
+                string[] clist = listBox1.Items.OfType<string>().ToArray();
+                List<string> users = new List<string>();
+
+                users.Add("userList");
+                foreach (String name in clist)
+                {
+                    users.Add(name);
+                }
+                byte[] userList = ObjectToByteArray(users);
+
+                foreach (var Item in clientList)
+                {
+                    TcpClient broadcastSocket = (TcpClient)Item.Value;
+                    NetworkStream broadcastStream = broadcastSocket.GetStream();
+                    broadcastStream.Write(userList, 0, userList.Length);
+                    broadcastStream.Flush();
+                }
+            }
+            catch (SocketException)
+            {
+                // Hata yönetimi eklenebilir
+            }
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            textBox1.SelectionStart = textBox1.TextLength;
+            textBox1.ScrollToCaret();
+        }
+
+        // --- BURASI EKLENEN KISIM ---
+        public void SaveMessageToDb(string username, string message)
+        {
+            string connectionString = "Server=HP\\SQLEXPRESS;Database=ChatApp;Trusted_Connection=True;";
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                string query = "INSERT INTO ChatMessages (UserName, MessageText) VALUES (@UserName, @MessageText)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@UserName", username);
+                cmd.Parameters.AddWithValue("@MessageText", message);
+
+                conn.Open();
+                cmd.ExecuteNonQuery();
+                conn.Close();
+            }
+        }
         private void Private_Click(object sender, EventArgs e)
         {
             if (listBox1.SelectedIndex != -1)
@@ -231,87 +283,47 @@ namespace Server
                 chat.Add("Admin : " + inputPrivate.Text);
 
                 byte[] byData = ObjectToByteArray(chat);
-                TcpClient workerSocket = null;
-                workerSocket = (TcpClient)clientList.FirstOrDefault(x => x.Key == clientName).Value; //find the client by username in dictionary
+                TcpClient workerSocket = clientList.FirstOrDefault(x => x.Key == clientName).Value;
 
                 NetworkStream stm = workerSocket.GetStream();
                 stm.Write(byData, 0, byData.Length);
                 stm.Flush();
                 chat.Clear();
-
             }
         }
-
         private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
         {
             try
             {
                 TcpClient workerSocket = null;
-
                 String clientName = listBox1.GetItemText(listBox1.SelectedItem);
-                workerSocket = (TcpClient)clientList.FirstOrDefault(x => x.Key == clientName).Value; //find the client by username in dictionary
+                workerSocket = clientList.FirstOrDefault(x => x.Key == clientName).Value;
                 workerSocket.Close();
-
             }
-            catch (SocketException se)
+            catch (SocketException)
             {
+                // Hata yönetimi eklenebilir
             }
         }
-
-        public void sendUsersList()
+        public void SavePrivateMessageToDb(string sender, string receiver, string message)
         {
-            try
+            string connectionString = "Server=HP\\SQLEXPRESS;Database=ChatApp;Trusted_Connection=True;";
+            using (SqlConnection conn = new SqlConnection(connectionString))
             {
-                byte[] userList = new byte[1024];
-                string[] clist = listBox1.Items.OfType<string>().ToArray();
-                List<string> users = new List<string>();
+                string query = @"INSERT INTO PrivateMessages (Sender, Receiver, MessageText, SentAt) 
+                         VALUES (@Sender, @Receiver, @MessageText, @SentAt)";
+                SqlCommand cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Sender", sender);
+                cmd.Parameters.AddWithValue("@Receiver", receiver);
+                cmd.Parameters.AddWithValue("@MessageText", message);
+                cmd.Parameters.AddWithValue("@SentAt", DateTime.Now);
 
-                users.Add("userList");
-                foreach (String name in clist)
-                {
-                    users.Add(name);
-                }
-                userList = ObjectToByteArray(users);
-
-                foreach (var Item in clientList)
-                {
-                    TcpClient broadcastSocket;
-                    broadcastSocket = (TcpClient)Item.Value;
-                    NetworkStream broadcastStream = broadcastSocket.GetStream();
-                    broadcastStream.Write(userList, 0, userList.Length);
-                    broadcastStream.Flush();
-                    users.Clear();
-                }
-            }
-            catch (SocketException se)
-            {
+                conn.Open();
+                cmd.ExecuteNonQuery();
+                conn.Close();
             }
         }
 
-        private void privateChat(List<string> text)
-        {
-            try
-            {
 
-                byte[] byData = ObjectToByteArray(text);
-
-                TcpClient workerSocket = null;
-                workerSocket = (TcpClient)clientList.FirstOrDefault(x => x.Key == text[1]).Value; //find the client by username in dictionary
-
-                NetworkStream stm = workerSocket.GetStream();
-                stm.Write(byData, 0, byData.Length);
-                stm.Flush();
-
-            }
-            catch (SocketException se)
-            {
-            }
-        }
-
-        private void textBox1_TextChanged(object sender, EventArgs e)
-        {
-            textBox1.SelectionStart = textBox1.TextLength;
-            textBox1.ScrollToCaret();
-        }
     }
 }

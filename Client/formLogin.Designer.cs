@@ -30,7 +30,7 @@
             // 
             // textBox1
             // 
-            this.textBox1.Location = new System.Drawing.Point(78, 47);
+            this.textBox1.Location = new System.Drawing.Point(12, 25);
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(177, 20);
             this.textBox1.TabIndex = 0;
@@ -39,33 +39,36 @@
             // btnAdd
             // 
             this.btnAdd.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.btnAdd.Location = new System.Drawing.Point(134, 88);
+            this.btnAdd.Location = new System.Drawing.Point(12, 51);
             this.btnAdd.Name = "btnAdd";
             this.btnAdd.Size = new System.Drawing.Size(75, 23);
             this.btnAdd.TabIndex = 1;
-            this.btnAdd.Text = "Ekle";
+            this.btnAdd.Text = "Giriş Yap";
             this.btnAdd.UseVisualStyleBackColor = true;
             this.btnAdd.Click += new System.EventHandler(this.btnAdd_Click);
             // 
             // lblName
             // 
             this.lblName.AutoSize = true;
-            this.lblName.Location = new System.Drawing.Point(10, 50);
+            this.lblName.BackColor = System.Drawing.Color.Transparent;
+            this.lblName.ForeColor = System.Drawing.Color.White;
+            this.lblName.Location = new System.Drawing.Point(12, 9);
             this.lblName.Name = "lblName";
-            this.lblName.Size = new System.Drawing.Size(35, 13);
+            this.lblName.Size = new System.Drawing.Size(95, 13);
             this.lblName.TabIndex = 2;
-            this.lblName.Text = "Name";
+            this.lblName.Text = "Kullanıcı Adı Giriniz";
             // 
             // formLogin
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(284, 128);
+            this.BackColor = System.Drawing.Color.Black;
+            this.ClientSize = new System.Drawing.Size(198, 86);
             this.Controls.Add(this.lblName);
             this.Controls.Add(this.btnAdd);
             this.Controls.Add(this.textBox1);
             this.Name = "formLogin";
-            this.Text = "formLogin";
+            this.Text = "Giriş";
             this.ResumeLayout(false);
             this.PerformLayout();
 
