@@ -107,7 +107,7 @@ namespace Server
             }
             catch (Exception)
             {
-                // Hata yönetimi eklenebilir
+                
             }
         }
 
@@ -144,7 +144,7 @@ namespace Server
                     int bytesRead = stream.Read(data, 0, data.Length);
                     if (bytesRead == 0) break;
 
-                    // --- DÜZENLEME: Doğru veri uzunluğunda oku ---
+                   
                     var obj = ByteArrayToObject(data.Take(bytesRead).ToArray());
                     List<string> parts = obj as List<string>;
                     if (parts == null || parts.Count == 0)
@@ -160,7 +160,7 @@ namespace Server
                             announce(parts[1], username, true);
                             SaveMessageToDb(username, parts[1]);
                             break;
-                        // pChat desteği ekleyecekseniz burada benzer şekilde List<string> ile kullanın.
+                        
                         case "pChat":
                             // parts[1]: alıcı, parts[2]: mesaj
                             string alici = parts[1];
@@ -168,7 +168,7 @@ namespace Server
 
                             if (clientList.ContainsKey(alici))
                             {
-                                // Alıcıya özel mesajı gönder
+                                
                                 List<string> paket = new List<string>();
                                 paket.Add("pChat");
                                 paket.Add(username); // gönderen
@@ -181,7 +181,7 @@ namespace Server
                                 aliciStream.Write(privateMsg, 0, privateMsg.Length);
                                 aliciStream.Flush();
 
-                                // --- VERİTABANINA KAYDET ---
+                                
                                 SavePrivateMessageToDb(username, alici, mesaj);
                             }
                             break;
@@ -218,7 +218,7 @@ namespace Server
             }
             catch (SocketException)
             {
-                // Hata yönetimi eklenebilir
+                
             }
         }
 
@@ -246,7 +246,7 @@ namespace Server
             }
             catch (SocketException)
             {
-                // Hata yönetimi eklenebilir
+              
             }
         }
 
@@ -256,7 +256,7 @@ namespace Server
             textBox1.ScrollToCaret();
         }
 
-        // --- BURASI EKLENEN KISIM ---
+       
         public void SaveMessageToDb(string username, string message)
         {
             string connectionString = "Server=HP\\SQLEXPRESS;Database=ChatApp;Trusted_Connection=True;";
@@ -302,7 +302,7 @@ namespace Server
             }
             catch (SocketException)
             {
-                // Hata yönetimi eklenebilir
+                
             }
         }
         public void SavePrivateMessageToDb(string sender, string receiver, string message)

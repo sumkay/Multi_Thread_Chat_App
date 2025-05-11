@@ -111,7 +111,7 @@ namespace Client
                         btnConnect.Enabled = true;
                     }
 
-                    // --- DÜZENLEME: Doğru veri uzunluğunda oku ---
+                   
                     List<string> parts = (List<string>)ByteArrayToObject(inStream.Take(bytesRead).ToArray());
 
                     switch (parts[0])
@@ -269,15 +269,15 @@ namespace Client
             }
 
             List<string> paket = new List<string>();
-            paket.Add("pChat"); // özel mesaj olduğunu belirtiyoruz
-            paket.Add(cmbUsers.SelectedItem.ToString()); // alıcı kullanıcı adı
-            paket.Add(input.Text); // mesaj
+            paket.Add("pChat"); 
+            paket.Add(cmbUsers.SelectedItem.ToString()); 
+            paket.Add(input.Text);
 
             byte[] outStream = ObjectToByteArray(paket);
             serverStream.Write(outStream, 0, outStream.Length);
             serverStream.Flush();
 
-            // İsterseniz kendi ekranınızda da gösterin:
+            
             history.AppendText(Environment.NewLine + " [Özel Mesaj] " + cmbUsers.SelectedItem.ToString() + " >> " + input.Text);
 
             input.Clear();
